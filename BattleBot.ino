@@ -23,5 +23,5 @@ void loop() {
     digitalWrite(dirPinMotor2, HIGH); // Set direction backward
     analogWrite(pwmPinMotor2, 250); // Example: 25% duty cycle for motor 2
 
-    delay(1000); // Delay for 1 second
+    delay(1000); // Delay for 1 second Hello
 }

@@ -130,18 +130,18 @@ void drive(int a1, int a2, int speed) {
 }
 
 void open(){
-  myservo.write(120);
+  gripper.write(120);
 }
 
 void close(){
-  myservo.write(0);
+  gripper.write(0);
 }
 
 void look(){
-    myservo.write(0);
+    eyes.write(0);
     delay(500);
-    myservo.write(90);
+    eyes.write(90);
     delay(500);
-    myservo.write(180);
+    eyes.write(180);
     delay(500);
 }

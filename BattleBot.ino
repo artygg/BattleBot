@@ -1,5 +1,9 @@
 #include <Servo.h>
 
+#define LEFT_LIMIT   0
+#define RIGHT_LIMIT  180
+#define SCAN_SPEED   2
+
 // Define pins for motor 1
 const int a1Motor1 = 11; // PWM pin for motor 1
 const int a2Motor1 = 10; // Direction pin for motor 1
@@ -11,8 +15,13 @@ const int a2Motor2 = 6; // Direction pin for motor 2
 const int sensorPinMotor2 = 9; //Sensor pin for motor 2
 
 const int lsensor1 = 4;
-const int lsensor2=A0;
-const int lsensor3=A1;
+const int lsensor2 = A0;
+const int lsensor3 = A1;
+
+const int leftLimit = 0;
+
+
+
 
 const int trigPin = 2;  
 const int echoPin = 7; 
@@ -73,8 +82,7 @@ void loop() {
 	  delayMicroseconds(10);  
 	  digitalWrite(trigPin, LOW);  
 
-    duration = pulseIn(echoPin, HIGH);  
-    distance = (duration*.0343)/2;  
+
     Serial.print("Distance: ");  
     Serial.println(distance);  
     delay(100); 
@@ -96,7 +104,23 @@ void loop() {
   delay(3000);*/
 
 
+    for (int pos = LEFT_LIMIT; pos <= RIGHT_LIMIT; pos += SCAN_SPEED) {
+        eyes.write(pos);
+        delay(50); // Adjust delay for smoother movement
+        int distance = getDistance();
+        Serial.println(distance);
+        delay(50); // Additional delay for stability
+    }
 
+    // Scan from right to left
+    for (int pos = RIGHT_LIMIT; pos >= LEFT_LIMIT; pos -= SCAN_SPEED) {
+        eyes.write(pos);
+        delay(50); // Adjust delay for smoother movement
+        int distance = getDistance();
+        Serial.println(distance);
+        delay(50); // Additional delay for stability
+    }
+}
 
 }
 
@@ -137,11 +161,10 @@ void close(){
   gripper.write(0);
 }
 
-void look(){
-    eyes.write(0);
-    delay(500);
-    eyes.write(90);
-    delay(500);
-    eyes.write(180);
-    delay(500);
+void getDistance()  {
+    delay(50);
+    duration = pulseIn(echoPin, HIGH);
+    distance = (duration*.0343)/2;
+    return distance;
 }
+

@@ -2,7 +2,7 @@
 
 #define LEFT_LIMIT   0
 #define RIGHT_LIMIT  180
-#define SCAN_SPEED   2
+#define SCAN_SPEED   60
 
 // Define pins for motor 1
 const int a1Motor1 = 11; // PWM pin for motor 1
@@ -121,14 +121,12 @@ void loop() {
     // Scan from right to left
     for (int pos = RIGHT_LIMIT; pos >= LEFT_LIMIT; pos -= SCAN_SPEED) {
         eyes.write(pos);
-        delay(50); // Adjust delay for smoother movement
         int distance = getDistance();
         Serial.println(distance);
-        delay(50); // Additional delay for stability
     }
 }
 
-}
+
 
 void stop(){
   drive(a1Motor1, a2Motor1, 0);
@@ -167,8 +165,7 @@ void close(){
   gripper.write(0);
 }
 
-void getDistance()  {
-    delay(50);
+int getDistance()  {
     duration = pulseIn(echoPin, HIGH);
     distance = (duration*.0343)/2;
     return distance;

@@ -10,6 +10,9 @@ const int a1Motor2 = 5; // PWM pin for motor 2
 const int a2Motor2 = 6; // Direction pin for motor 2
 const int sensorPinMotor2 = 9; //Sensor pin for motor 2
 
+const int lsensor1 = 4;
+const int lsensor2=A0;
+const int lsensor3=A1;
 
 const int trigPin = 2;  
 const int echoPin = 7; 
@@ -20,9 +23,12 @@ Servo myservo;
 const int speed1 = 235;
 const int speed2 = 250;
 
+
 float duration, distance;  
 int sensorValueMotor1 = 0;
 int sensorValueMotor2 = 0;
+
+
 
 void setup() {
     // Initialize PWM and direction pins as outputs
@@ -40,11 +46,13 @@ void setup() {
     open();
     delay(4000);
     close();
+    
 
 }
 
 void loop() {
   forward();
+  /*
     sensorValueMotor1 = digitalRead(sensorPinMotor1);
     sensorValueMotor2 = digitalRead(sensorPinMotor2);
     int speedAdjustment = 0;
@@ -76,14 +84,17 @@ void loop() {
     }*/
 
   
-  forward();
+  /*forward();
   delay(3000);
   back();
   delay(3000);
   left();
   delay(3000);
   right();
-  delay(3000);
+  delay(3000);*/
+
+
+
 
 }
 

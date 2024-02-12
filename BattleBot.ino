@@ -114,10 +114,8 @@ void loop() {
 
     for (int pos = LEFT_LIMIT; pos <= RIGHT_LIMIT; pos += SCAN_SPEED) {
         eyes.write(pos);
-        delay(50); // Adjust delay for smoother movement
         int distance = getDistance();
         Serial.println(distance);
-        delay(50); // Additional delay for stability
     }
 
     // Scan from right to left

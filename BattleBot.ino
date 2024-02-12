@@ -108,7 +108,22 @@ void loop() {
   open();
   delay(500);
   close();*/
-  sensorValue = ((analogRead(lsensor1)+analogRead(lsensor2))/2);
+  // sensorValue1 = ((analogRead(lsensor1)+analogRead(lsensor2))/2);
+  // if (sensorValue >750 ) {
+
+  //    // black
+  //    // move
+  //   } else if (sensorValue <750) {
+  //     // white
+  //     // move
+  //   }
+
+  //      // Добавьте другую логику, основанную на значениях датчика, здесь
+  //      delay(500); // Настройте по необходимости
+  //  }
+
+
+
     for (int pos = LEFT_LIMIT; pos <= RIGHT_LIMIT; pos += SCAN_SPEED) {
         eyes.write(pos);
         int distance = getDistance();

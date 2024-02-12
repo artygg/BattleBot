@@ -117,7 +117,7 @@ void loop() {
         }  else if (pos > 80 && pos < 130 && distance < DISTANCE_LIMIT) {
             back();
             delay(500);
-            invert();
+            turn();
         }
 
         Serial.println(distance);
@@ -174,6 +174,14 @@ int getDistance()  {
     return distance;
 }
 
-void invert(){
-
+void turn(){
+    eyes.write(80);
+    for(;distance < DISTANCE_LIMIT;) {
+        distance = getDistance();
+        if(distance < 10) {
+            right();
+        } else {
+            back();
+        }
+    }
 }

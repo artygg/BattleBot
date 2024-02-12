@@ -14,21 +14,10 @@ const int a1Motor2 = 5; // PWM pin for motor 2
 const int a2Motor2 = 6; // Direction pin for motor 2
 const int sensorPinMotor2 = 9; //Sensor pin for motor 2
 
-<<<<<<< HEAD
 const int lsensor1 = A0;
 const int lsensor2=A1;
 
 int sensorValue;
-=======
-const int lsensor1 = 4;
-const int lsensor2 = A0;
-const int lsensor3 = A1;
-
-const int leftLimit = 0;
-
-
-
->>>>>>> 9f5dc6aa838047cb2d138b785167736d6205aa00
 
 const int trigPin = 2;  
 const int echoPin = 7; 

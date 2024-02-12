@@ -3,6 +3,7 @@
 #define LEFT_LIMIT   0
 #define RIGHT_LIMIT  180
 #define SCAN_SPEED   60
+#define DISTANCE_LIMIT 30
 
 // Define pins for motor 1
 const int a1Motor1 = 11; // PWM pin for motor 1
@@ -18,6 +19,8 @@ const int lsensor1 = A0;
 const int lsensor2=A1;
 
 int sensorValue;
+
+bool inverted = false;
 
 const int trigPin = 2;  
 const int echoPin = 7; 
@@ -106,19 +109,19 @@ void loop() {
   delay(500);
   close();*/
   sensorValue = ((analogRead(lsensor1)+analogRead(lsensor2))/2);
-
-
-  
-  // Serial.println(analogRead(lsensor2));
-  // Serial.println(analogRead(lsensor3));
-
     for (int pos = LEFT_LIMIT; pos <= RIGHT_LIMIT; pos += SCAN_SPEED) {
         eyes.write(pos);
         int distance = getDistance();
+        if(pos <= 80 && distance >= DISTANCE_LIMIT) {
+            left();
+        }  else if (pos > 80 && pos < 130 && distance < DISTANCE_LIMIT) {
+            back();
+            delay(500);
+            invert();
+        }
+
         Serial.println(distance);
     }
-
-    // Scan from right to left
     for (int pos = RIGHT_LIMIT; pos >= LEFT_LIMIT; pos -= SCAN_SPEED) {
         eyes.write(pos);
         int distance = getDistance();
@@ -169,4 +172,8 @@ int getDistance()  {
     duration = pulseIn(echoPin, HIGH);
     distance = (duration*.0343)/2;
     return distance;
+}
+
+void invert(){
+
 }

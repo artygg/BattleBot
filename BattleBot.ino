@@ -15,7 +15,8 @@ const int trigPin = 2;
 const int echoPin = 7; 
 
 
-Servo myservo;
+Servo gripper;
+Servo eyes;
 
 const int speed1 = 235;
 const int speed2 = 250;
@@ -34,7 +35,8 @@ void setup() {
     pinMode(a2Motor1, OUTPUT);
     pinMode(a1Motor2, OUTPUT);
     pinMode(a2Motor2, OUTPUT);
-    myservo.attach(3);
+    gripper.attach(3);
+    eyes.attach(12);
     //pinMode(sensorPinMotor1, INPUT_PULLUP);
     //pinMode(sensorPinMotor2, INPUT_PULLUP);
     open();
@@ -45,6 +47,7 @@ void setup() {
 
 void loop() {
   forward();
+  /*
     sensorValueMotor1 = digitalRead(sensorPinMotor1);
     sensorValueMotor2 = digitalRead(sensorPinMotor2);
     int speedAdjustment = 0;
@@ -122,4 +125,13 @@ void open(){
 
 void close(){
   myservo.write(0);
+}
+
+void look(){
+    myservo.write(0);
+    delay(500);
+    myservo.write(90);
+    delay(500);
+    myservo.write(180);
+    delay(500);
 }

@@ -10,9 +10,10 @@ const int a1Motor2 = 5; // PWM pin for motor 2
 const int a2Motor2 = 6; // Direction pin for motor 2
 const int sensorPinMotor2 = 9; //Sensor pin for motor 2
 
-const int lsensor1 = 4;
-const int lsensor2=A0;
-const int lsensor3=A1;
+const int lsensor1 = A0;
+const int lsensor2=A1;
+
+int sensorValue;
 
 const int trigPin = 2;  
 const int echoPin = 7; 
@@ -36,6 +37,9 @@ void setup() {
     pinMode(trigPin, OUTPUT);  
   	pinMode(echoPin, INPUT);  
 	  Serial.begin(9600);  
+
+    pinMode(lsensor1, INPUT);
+    pinMode(lsensor2, INPUT);
 
     pinMode(a1Motor1, OUTPUT);
     pinMode(a2Motor1, OUTPUT);
@@ -94,7 +98,16 @@ void loop() {
   delay(3000);
   right();
   delay(3000);*/
+  /*look();
+  open();
+  delay(500);
+  close();*/
+  sensorValue = ((analogRead(lsensor1)+analogRead(lsensor2))/2);
 
+
+  
+  // Serial.println(analogRead(lsensor2));
+  // Serial.println(analogRead(lsensor3));
 
 
 
@@ -139,9 +152,12 @@ void close(){
 
 void look(){
     eyes.write(0);
-    delay(500);
+    delay(1000);
     eyes.write(90);
-    delay(500);
+    delay(1000);
     eyes.write(180);
-    delay(500);
+    delay(1000);
+    eyes.write(90);
+    delay(1000);
+
 }

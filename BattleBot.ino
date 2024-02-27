@@ -36,8 +36,8 @@ const int echoPin = 7;
 Servo gripper;
 Servo eyes;
 
-int speed1 = 230;
-int speed2 = 250;
+int speed1 = 150;
+int speed2 = 120;
 
 
 int sensorValueMotorL = 0;
@@ -79,16 +79,30 @@ void setup() {
 }
 
 void loop() {
+    stop();
     eyes.write(85);
     delay(300);
-    int distanceToObstacle = getDistance();
-    delay(200);
+    int DistanceToObstacle = 0;
+    for(int i = 0; i<10; i++) {
+      DistanceToObstacle += getDistane();
+      delay(100);
+    }
+    DistanceToObstacle /= 10;
+    delay(50);
     eyes.write(180);
     /*Serial.println(totalPulses);
     Serial.println(distanceToObstacle);
     Serial.println((distanceToObstacle - DISTANCE_LIMIT)/pulseDistance);*/
+    if(DistanceToObstacle >= 100) {
+      DistanceToObstacle = 30;
+    }
     for(int totalPulses = 0; totalPulses<(distanceToObstacle - DISTANCE_LIMIT)/pulseDistance;) {
       forward();
+      int leftDistance = getDistane();
+      if(leftDistance > 10) {
+        stop();
+        return;
+      }
       int speedDif = sensorValueMotorL - sensorValueMotorR;
       speed1 -= speedDif*5;
       if (speed1<1) {
@@ -102,7 +116,7 @@ void loop() {
       delay(50); 
     }
     totalPulses = 0;
-    turnRight(180);
+    turn();
     /*Serial.print("Motor L: ");
     Serial.println(sensorValueMotorL);
     
@@ -196,7 +210,18 @@ void turnRight(int deg) {
       delay(10);
   }
   stop();
-  delay(1000);
+}
+
+void turn() {
+  int arcLen = (110*pi*deg/180)*2;
+  for(int totalPulses = 0;totalPulses<(arcLen/pulseDistance);) {
+      drive(a1Motor1, a2Motor1, speed1);
+      drive(a2Motor2, a1Motor2, speed2);
+      totalPulses += sensorValueMotorR;
+      sensorValueMotorR = 0;
+      delay(10);
+  }
+  stop();
 }
 
 void left() {

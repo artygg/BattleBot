@@ -22,6 +22,7 @@ const int sensorPinMotor2 = 3; //Sensor pin for motor 2
 const float pulseDistance = pi*65/20; //Wheel diameter in mm * PI constant and divided by pulses per 1 spin
 
 const int gripperPin = 4;
+const int distanceRotatorPin = 12;
 
 const int lsensor1 = A0;
 const int lsensor2 = A1;
@@ -68,7 +69,7 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(sensorPinMotor1), countPulseR, CHANGE);
 
     gripper.attach(gripperPin);
-    eyes.attach(12);
+    eyes.attach(distanceRotatorPin);
     //pinMode(sensorPinMotor1, INPUT_PULLUP);
     //pinMode(sensorPinMotor2, INPUT_PULLUP);
     open();

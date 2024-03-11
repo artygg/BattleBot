@@ -1,9 +1,13 @@
-#include <Servo.h>
-
 #define LEFT_LIMIT   0
 #define RIGHT_LIMIT  180
 #define SCAN_SPEED   60
-const int distanceLimit 5;
+#define GRIPPER_OPEN 1500
+#define GRIPPER_CLOSE 1000
+#define EYES_FORWARD 1400
+#define EYES_LEFT 2300
+#define EYES_RIGHT 500
+
+const int distanceLimit = 10;
 const float pi = 3.141592653589793238462643383279;
 
 //Distance from eyes to the back wheel - 180mm
@@ -22,6 +26,7 @@ const int sensorPinMotor2 = 3; //Sensor pin for motor 2
 const float pulseDistance = pi*65/20; //Wheel diameter in mm * PI constant and divided by pulses per 1 spin
 
 const int gripperPin = 4;
+const int eyesPin = 12;
 
 const int lsensor1 = A0;
 const int lsensor2 = A1;
@@ -32,12 +37,8 @@ bool isstopped = true;
 const int trigPin = 8;  
 const int echoPin = 7; 
 
-
-Servo gripper;
-Servo eyes;
-
-int speed1 = 150;
-int speed2 = 120;
+int speed1 = 255;
+int speed2 = 255;
 
 
 int sensorValueMotorL = 0;
@@ -50,7 +51,10 @@ unsigned long lastTimeL = 0;
 
 
 void setup() {
+
     // Initialize PWM and direction pins as outputs
+    pinMode(gripperPin, OUTPUT);
+    pinMode(eyesPin, OUTPUT);
     pinMode(trigPin, OUTPUT);  
   	pinMode(echoPin, INPUT);  
 	  Serial.begin(9600);  
@@ -66,42 +70,37 @@ void setup() {
     pinMode(sensorPinMotor2, INPUT);
     attachInterrupt(digitalPinToInterrupt(sensorPinMotor2), countPulseL, CHANGE);
     attachInterrupt(digitalPinToInterrupt(sensorPinMotor1), countPulseR, CHANGE);
-
-    gripper.attach(gripperPin);
-    eyes.attach(12);
     //pinMode(sensorPinMotor1, INPUT_PULLUP);
     //pinMode(sensorPinMotor2, INPUT_PULLUP);
-    open();
-    delay(1000);
-    close();
     Serial.println(pulseDistance);
 
 }
 
-void loop() {
+void loop() {  
+    gripper(GRIPPER_CLOSE);
     stop();
-    eyes.write(85);
+    eyes(EYES_LEFT);
+    delay(2000);
+    eyes(EYES_RIGHT);
+    delay(2000);
+    eyes(EYES_FORWARD);
     delay(300);
-    int DistanceToObstacle = 0;
-    for(int i = 0; i<10; i++) {
-      DistanceToObstacle += getDistane();
-      delay(100);
-    }
-    DistanceToObstacle /= 10;
-    delay(50);
-    eyes.write(180);
-    /*Serial.println(totalPulses);
+    int distanceToObstacle = getDistance();
     Serial.println(distanceToObstacle);
-    Serial.println((distanceToObstacle - DISTANCE_LIMIT)/pulseDistance);*/
-    if(DistanceToObstacle >= 100) {
-      DistanceToObstacle = 30;
+    delay(50);
+    //eyes.write(180);
+    delay(300);
+    if(distanceToObstacle >= 1000) {
+      distanceToObstacle = 30;
     }
-    for(int totalPulses = 0; totalPulses<(distanceToObstacle - DISTANCE_LIMIT)/pulseDistance;) {
+    for(int totalPulses = 0; totalPulses<(distanceToObstacle - distanceLimit)/pulseDistance;) {
+      Serial.println("ok");
       forward();
-      int leftDistance = getDistane();
-      if(leftDistance > 10) {
+      int leftDistance = getDistance();
+      delay(100);
+      if(leftDistance > 200) {
         stop();
-        return;
+        turnLeft(90);
       }
       int speedDif = sensorValueMotorL - sensorValueMotorR;
       speed1 -= speedDif*5;
@@ -116,14 +115,13 @@ void loop() {
       delay(50); 
     }
     totalPulses = 0;
-    turn();
+ 
     /*Serial.print("Motor L: ");
     Serial.println(sensorValueMotorL);
     
     Serial.print("Motor R: ");
     Serial.println(sensorValueMotorR);*/
-    
-    
+  
   
 
   
@@ -213,7 +211,7 @@ void turnRight(int deg) {
 }
 
 void turn() {
-  int arcLen = (110*pi*deg/180)*2;
+  int arcLen = (110*pi*180/180)*2;
   for(int totalPulses = 0;totalPulses<(arcLen/pulseDistance);) {
       drive(a1Motor1, a2Motor1, speed1);
       drive(a2Motor2, a1Motor2, speed2);
@@ -258,16 +256,9 @@ void back() {
 
 void drive(int a1, int a2, int speed) {
   analogWrite(a1, speed);
-  digitalWrite(a2, LOW);
+  
 }
 
-void open(){
-  gripper.write(120);
-}
-
-void close(){
-  gripper.write(50);
-}
 
 int getDistance()  {
   int total = 0;
@@ -284,8 +275,35 @@ int getDistance()  {
   return total;
 }
 
-void turn(){
-    drive(a1Motor1, a2Motor1, speed1);
-    drive(a2Motor2, a1Motor2, speed2);
-    
+
+/*void gripper(int pulse) {
+  static unsigned long timer;
+  static unsigned int pulse1;
+  if(pulse > 0) {
+    pulse1 = pulse;
+  }
+  if(millis() > timer) {
+      digitalWrite(gripperPin, HIGH);
+      delayMicroseconds(pulse1);
+      digitalWrite(gripperPin, LOW);
+      timer = millis() + 20;
+  }
+}*/
+
+void gripper(int pulse) {
+  for(int i = 0; i < 10; i++) {
+    digitalWrite(gripperPin, HIGH);
+    delayMicroseconds(pulse);
+    digitalWrite(gripperPin, LOW);
+    delay(20);
+  }
+}
+
+void eyes(int pulse) {
+  for(int i = 0; i < 10; i++) {
+    digitalWrite(eyesPin, HIGH);
+    delayMicroseconds(pulse);
+    digitalWrite(eyesPin, LOW);
+    delay(20);
+  }
 }

@@ -1,292 +1,361 @@
-#include <Servo.h>
+#include <Adafruit_NeoPixel.h>
 
-#define LEFT_LIMIT   0
-#define RIGHT_LIMIT  180
-#define SCAN_SPEED   60
-const int distanceLimit 5;
-const float pi = 3.141592653589793238462643383279;
+boolean hasInitiatedStart = false;
+boolean hasStarted = false;
 
-//Distance from eyes to the back wheel - 180mm
-//Distance between wheels - 110mm
+const int lineSensors[] = { A0, A1, A2, A3, A4, A5, A6, A7 };
+int lineSensorSensitivity = 700;
 
-// Define pins for motor 1
-const int a1Motor1 = 11; // PWM pin for motor 1
-const int a2Motor1 = 10; // Direction pin for motor 1
-const int sensorPinMotor1 = 2; //Sensor pin for motor 1
+const int GRIPPER_PIN = 4;
+const int GRIPPER_OPEN_PULSE = 1500;
+const int GRIPPER_CLOSE_PULSE = 1000;
+const int GRIPPER_PULSE_REPEAT = 10;
 
-// Define pins for motor 2
-const int a1Motor2 = 5; // PWM pin for motor 2
-const int a2Motor2 = 6; // Direction pin for motor 2
-const int sensorPinMotor2 = 3; //Sensor pin for motor 2
+unsigned long time;
 
-const float pulseDistance = pi*65/20; //Wheel diameter in mm * PI constant and divided by pulses per 1 spin
+long durationFront;
+int distanceFront;
+const int trigPinFront = 8;
+const int echoPinFront = 7;
+int backCounter = 0;
 
-const int gripperPin = 4;
-const int distanceRotatorPin = 12;
+long durationLeft;
+int distanceLeft;
+const int trigPinLeft = 12;
+const int echoPinLeft = 9;
+int distanceOverride = 0;
 
-const int lsensor1 = A0;
-const int lsensor2 = A1;
+//===[ Motor pins ]======================
 
-int lineSensorValue;
-bool isstopped = true;
+const int motorRightBackwards = 6;
+const int motorRightForward = 5;
+const int motorLeftBackwards = 10;
+const int motorLeftForward = 11;
+const int movementStuckBufferDelay = 1000;
 
-const int trigPin = 8;  
-const int echoPin = 7; 
+//===[ Motor tests for pulses ]====================
+
+const int motor_R1 = 3;
+const int motor_R2 = 2;
+int countLeft = 0;
+int countRight = 0;
+int countsLeft = 0, previousCountLeft;
+int countsRight = 0, previousCountRight;
 
 
-Servo gripper;
-Servo eyes;
+//===[ Led Pixels ]================================
 
-int speed1 = 150;
-int speed2 = 120;
+const int PIXEL_PIN = 13;
+const int PIXEL_NUMBER = 4;
+Adafruit_NeoPixel leds(PIXEL_NUMBER, PIXEL_PIN, NEO_RGB + NEO_KHZ800);
+const uint32_t RED = leds.Color(255, 0, 0);
+const uint32_t YELLOW = leds.Color(255, 150, 0);
+const uint32_t BLUE = leds.Color(0, 0, 255);
+const uint32_t WHITE = leds.Color(255, 255, 255);
+const uint32_t START = leds.Color(0, 0, 0);
+//===[ Functions ]=================================
 
+boolean isBlackZone() {
+  int count = 0;
+  for (int i = 0; i < 8; i++) {
+    if (analogRead(lineSensors[i]) > lineSensorSensitivity) {
+      count++;
+    }
+  }
+  if (count < 4) {
+    return false;
+  }
+  return true;
+}
 
-int sensorValueMotorL = 0;
-int sensorValueMotorR = 0;
+void adjustRight() {
+  turnRight();
+  wait(200);
+  moveForward();
+  wait(200);
+  turnLeft();
+  wait(200);
+  moveForward();
+  wait(200);
+  turnRight();
+  wait(100);
+}
 
-int totalPulses = 0;
+void adjustLeft() {
+  turnLeft();
+  wait(200);
+  moveForward();
+  wait(200);
+  turnRight();
+  wait(200);
+  moveForward();
+  wait(200);
+  turnLeft();
+  wait(100);
+}
 
-volatile unsigned long pulseCountL = 0;
-unsigned long lastTimeL = 0; 
+void setup_motor_pins() {
+  pinMode(motorRightBackwards, OUTPUT);
+  pinMode(motorRightForward, OUTPUT);
+  pinMode(motorLeftBackwards, OUTPUT);
+  pinMode(motorLeftForward, OUTPUT);
+}
+void moveForward() {
+  leds.fill(BLUE, 0, 4);
+  leds.show();
+  analogWrite(motorLeftForward, 240);
+  analogWrite(motorRightForward, 250);
+  digitalWrite(motorRightBackwards, 0);
+  digitalWrite(motorLeftBackwards, 0);
+}
 
+void moveBackwardsRotate() {
+  analogWrite(motorRightBackwards, 255);
+  analogWrite(motorLeftBackwards, 120);
+  digitalWrite(motorRightForward, 0);
+  digitalWrite(motorLeftForward, 0);
+}
+
+void moveBackwards() {
+  analogWrite(motorRightBackwards, 255);
+  analogWrite(motorLeftBackwards, 200);
+  digitalWrite(motorRightForward, 0);
+  digitalWrite(motorLeftForward, 0);
+}
+
+void stopRobot() {
+  digitalWrite(motorRightBackwards, 0);
+  digitalWrite(motorRightForward, 0);
+  digitalWrite(motorLeftBackwards, 0);
+  digitalWrite(motorLeftForward, 0);
+}
+void turnLeft() {
+  leds.fill(RED, 0, 4);
+  leds.show();
+  digitalWrite(motorLeftBackwards, 0);
+  digitalWrite(motorLeftForward, 0);
+  analogWrite(motorRightForward, 250);
+  digitalWrite(motorRightBackwards, 0);
+}
+
+void turnRight() {
+  leds.fill(RED, 0, 4);
+  leds.show();
+  digitalWrite(motorLeftBackwards, 0);
+  digitalWrite(motorLeftForward, 250);
+  analogWrite(motorRightForward, 0);
+  digitalWrite(motorRightBackwards, 0);
+}
+void rotateOnAxis() {
+  leds.fill(RED, 0, 4);
+  leds.show();
+  analogWrite(motorLeftBackwards, 240);
+  digitalWrite(motorLeftForward, 0);
+  analogWrite(motorRightForward, 250);
+  digitalWrite(motorRightBackwards, 0);
+}
+void rotateCounterAxis() {
+  digitalWrite(motorLeftBackwards, 0);
+  analogWrite(motorLeftForward, 240);
+  digitalWrite(motorRightForward, 0);
+  analogWrite(motorRightBackwards, 250);
+}
+void rotatePulses(int nrOfPulses) {
+  stopRobot();
+  countLeft = 0;
+  countRight = 0;
+  int lastCountRight = -1;
+  int lastCountLeft = -1;
+  long movementBuffer = millis() + movementStuckBufferDelay;
+  boolean isActive = true;
+  getDistanceLeft();
+  turnLeft();
+  wait(100);
+  while ((countLeft < nrOfPulses && countRight < nrOfPulses) && distanceLeft >= 15 && isActive) {
+    if (countLeft == lastCountLeft && countRight == lastCountRight) {  //wheel has not pulsed yet
+      if (millis() > movementBuffer) {                                 //if not moved for duration
+        movementBuffer = millis() + movementStuckBufferDelay;
+        leds.fill(WHITE, 0, 4);
+        leds.show();
+        moveBackwardsRotate();
+        wait(450);
+      }
+    } else {
+      movementBuffer = millis() + movementStuckBufferDelay;
+      lastCountLeft = countLeft;
+      lastCountRight = countRight;
+    }
+    getDistanceLeft();
+    getDistanceFront();
+  }
+  stopRobot();
+}
+
+void moveForwardOnPulses(int nrOfPulses) {
+  getDistanceLeft();
+  stopRobot();
+  countLeft = 0;
+  countRight = 0;
+  int lastCountRight = -1;
+  int lastCountLeft = -1;
+  long movementBuffer = millis() + movementStuckBufferDelay;
+  boolean isActive = true;
+
+  if(distanceLeft < 5) {
+    adjustRight();
+  }
+  moveForward();
+  while ((countLeft < nrOfPulses && countRight < nrOfPulses) && isActive) {
+    if (countLeft == lastCountLeft && countRight == lastCountRight) {  //wheel has not pulsed yet
+      if (millis() > movementBuffer) {                                 //if not moved for duration
+        movementBuffer = millis() + movementStuckBufferDelay;
+        leds.fill(WHITE, 0, 4);
+        leds.show();
+        moveBackwards();
+        wait(300);
+        if(countLeft - lastCountLeft < 3 || countRight - lastCountRight < 3 ) {
+          turnLeft();
+          wait(100);
+        }
+      }
+    } else {
+      movementBuffer = millis() + movementStuckBufferDelay;
+      lastCountLeft = countLeft;
+      lastCountRight = countRight;
+    }
+    getDistanceFront();
+  }
+  stopRobot();
+}
+void showNrOfPulse() {
+  Serial.print(countLeft);
+  Serial.print(" ");
+  Serial.print(countRight);
+  Serial.println();
+}
+void CountA() {
+  noInterrupts();
+  countLeft++;
+  interrupts();
+}
+
+void CountB() {
+  noInterrupts();
+  countRight++;
+  interrupts();
+}
+
+void getDistanceLeft() {
+  digitalWrite(trigPinLeft, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPinLeft, LOW);
+  // Reads the echoPin, returns the sound wave travel time in microseconds
+  durationLeft = pulseIn(echoPinLeft, HIGH);
+  // Calculating the distance
+  distanceLeft = durationLeft * 0.034 / 2;
+}
+
+void getDistanceFront() {
+  digitalWrite(trigPinFront, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPinFront, LOW);
+  // Reads the echoPin, returns the sound wave travel time in microseconds
+  durationFront = pulseIn(echoPinFront, HIGH);
+  // Calculating the distance
+  distanceFront = durationFront * 0.034 / 2;
+  Serial.println(distanceFront);
+}
+
+void wait(int waitingTime) {
+  time = millis();
+  while (millis() < time + waitingTime) {
+  }
+}
+
+void gripperServo(int pulse) {
+  for (int i = 0; i < GRIPPER_PULSE_REPEAT; i++) {
+    digitalWrite(GRIPPER_PIN, HIGH);
+    delayMicroseconds(pulse);
+    digitalWrite(GRIPPER_PIN, LOW);
+    delay(20);
+  }
+}
+
+void openGripper() {
+  gripperServo(GRIPPER_OPEN_PULSE);
+}
+void closeGripper() {
+  gripperServo(GRIPPER_CLOSE_PULSE);
+}
+//===[SETUP ]============================
 
 void setup() {
-    // Initialize PWM and direction pins as outputs
-    pinMode(trigPin, OUTPUT);  
-  	pinMode(echoPin, INPUT);  
-	  Serial.begin(9600);  
-
-    pinMode(lsensor1, INPUT);
-    pinMode(lsensor2, INPUT);
-
-    pinMode(a1Motor1, OUTPUT);
-    pinMode(a2Motor1, OUTPUT);
-    pinMode(a1Motor2, OUTPUT);
-    pinMode(a2Motor2, OUTPUT);
-    pinMode(sensorPinMotor1, INPUT);
-    pinMode(sensorPinMotor2, INPUT);
-    attachInterrupt(digitalPinToInterrupt(sensorPinMotor2), countPulseL, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(sensorPinMotor1), countPulseR, CHANGE);
-
-    gripper.attach(gripperPin);
-    eyes.attach(distanceRotatorPin);
-    //pinMode(sensorPinMotor1, INPUT_PULLUP);
-    //pinMode(sensorPinMotor2, INPUT_PULLUP);
-    open();
-    delay(1000);
-    close();
-    Serial.println(pulseDistance);
-
+  pinMode(motor_R1, INPUT_PULLUP);
+  pinMode(motor_R2, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(motor_R1), CountA, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(motor_R2), CountB, CHANGE);
+  pinMode(trigPinFront, OUTPUT);
+  pinMode(echoPinFront, INPUT);
+  pinMode(trigPinLeft, OUTPUT);  // Sets the trigPin as an Output
+  pinMode(echoPinLeft, INPUT);   // Sets the echoPin as an Input
+  Serial.begin(9600);
+  leds.begin();
+  leds.fill(BLUE, 0, 4);
+  leds.show();
+  countLeft = 0;
+  countRight = 0;
 }
+
+//===[ LOOP ]============================
 
 void loop() {
-    stop();
-    eyes.write(85);
-    delay(300);
-    int DistanceToObstacle = 0;
-    for(int i = 0; i<10; i++) {
-      DistanceToObstacle += getDistane();
+  if (hasStarted) {
+    getDistanceLeft();
+    getDistanceFront();
+    if (distanceLeft <= 20 && distanceFront >= 14) {
+      moveForwardOnPulses(10);
+      stopRobot();
+      wait(200);
+    } else if (distanceLeft > 20 && distanceFront > 14) {
+      rotatePulses(50);
+      stopRobot();
+      wait(200);
+      moveForwardOnPulses(15);
+      rotatePulses(50);
+    } else if (distanceLeft < 10 && distanceFront <= 15) {
+      leds.fill(YELLOW, 0, 4);
+      leds.show();
+      getDistanceFront();
+      rotateCounterAxis();
+      wait(400);
+      moveForwardOnPulses(10);
+    } else {
+      leds.fill(WHITE, 0, 4);
+      leds.show();
+      moveBackwards();
+      wait(300);
+      rotateCounterAxis();
+      wait(300);
+    }
+  } else {
+    if (hasInitiatedStart == true) {
+      moveForward();
+      wait(800);
+      closeGripper();
+      countLeft = 0;
+      countRight = 0;
+      rotatePulses(120);
       delay(100);
-    }
-    DistanceToObstacle /= 10;
-    delay(50);
-    eyes.write(180);
-    /*Serial.println(totalPulses);
-    Serial.println(distanceToObstacle);
-    Serial.println((distanceToObstacle - DISTANCE_LIMIT)/pulseDistance);*/
-    if(DistanceToObstacle >= 100) {
-      DistanceToObstacle = 30;
-    }
-    for(int totalPulses = 0; totalPulses<(distanceToObstacle - DISTANCE_LIMIT)/pulseDistance;) {
-      forward();
-      int leftDistance = getDistane();
-      if(leftDistance > 10) {
-        stop();
-        return;
+      moveForwardOnPulses(70);
+      hasStarted = true;
+    } else {
+      wait(1000);
+      getDistanceFront();
+      if (distanceFront < 30) {
+        openGripper();
+        wait(2000);
+        hasInitiatedStart = true;
       }
-      int speedDif = sensorValueMotorL - sensorValueMotorR;
-      speed1 -= speedDif*5;
-      if (speed1<1) {
-        speed1 = 0;
-      } else if(speed1>250) {
-        speed1 = 250;
-      }
-      totalPulses += sensorValueMotorR;
-      sensorValueMotorL = 0;
-      sensorValueMotorR = 0;
-      delay(50); 
     }
-    totalPulses = 0;
-    turn();
-    /*Serial.print("Motor L: ");
-    Serial.println(sensorValueMotorL);
-    
-    Serial.print("Motor R: ");
-    Serial.println(sensorValueMotorR);*/
-    
-    
-  
-
-  
-  /*forward();
-  delay(3000);
-  back();
-  delay(3000);
-  left();
-  delay(3000);
-  right();
-  delay(3000);*/
-  /*look();
-  open();
-  delay(500);
-  close();*/
-  // lineSensorValue = ((analogRead(lsensor1)+analogRead(lsensor2))/2);
-  // if (lineSensorValue >750 ) {
-
-  //    // black
-  //    // move
-  //   } else if (lineSensorValue <750) {
-  //     // white
-  //     // move
-  //   }
-
-  //      // Добавьте другую логику, основанную на значениях датчика, здесь
-  //      delay(500); // Настройте по необходимости
-  //  }
-
-
-/*
-    for (int pos = LEFT_LIMIT; pos <= RIGHT_LIMIT; pos += SCAN_SPEED) {
-        eyes.write(pos);
-        int distance = getDistance();
-        if(pos <= 80 && distance >= DISTANCE_LIMIT) {
-            left();
-        }  else if (pos > 80 && pos < 130 && distance < DISTANCE_LIMIT) {
-            back();
-            delay(500);
-            turn();
-        }
-
-        Serial.println(distance);
-    }
-    for (int pos = RIGHT_LIMIT; pos >= LEFT_LIMIT; pos -= SCAN_SPEED) {
-        eyes.write(pos);
-        int distance = getDistance();
-        Serial.println(distance);
-    }*/
-}
-
-void countPulseL() {
-    sensorValueMotorL++;
-}
-
-void countPulseR() {
-    sensorValueMotorR++;
-}
-
-void stop(){
-  isstopped = true;
-  drive(a1Motor1, a2Motor1, 0);
-  drive(a1Motor2, a2Motor2, 0);
-}
-
-void turnLeft(int deg) {
-  int arcLen = (110*pi*deg/180)*2;
-  for(int totalPulses = 0;totalPulses<(arcLen/pulseDistance);) {
-      left();
-      totalPulses += sensorValueMotorR;
-      sensorValueMotorR = 0; 
-      delay(10);
   }
-  stop();
-  delay(1000);
-}
-
-void turnRight(int deg) {
-  int arcLen = (110*pi*deg/180)*2;
-  for(int totalPulses = 0;totalPulses<(arcLen/pulseDistance);) {
-      right_back();
-      totalPulses += sensorValueMotorR;
-      sensorValueMotorR = 0;
-      delay(10);
-  }
-  stop();
-}
-
-void turn() {
-  int arcLen = (110*pi*deg/180)*2;
-  for(int totalPulses = 0;totalPulses<(arcLen/pulseDistance);) {
-      drive(a1Motor1, a2Motor1, speed1);
-      drive(a2Motor2, a1Motor2, speed2);
-      totalPulses += sensorValueMotorR;
-      sensorValueMotorR = 0;
-      delay(10);
-  }
-  stop();
-}
-
-void left() {
-  drive(a1Motor1, a2Motor1, 0);
-  drive(a1Motor2, a2Motor2, speed2);
-}
-void right_back() {
-  drive(a1Motor1, a2Motor1, 0);
-  drive(a2Motor2, a1Motor2, speed2);
-}
-
-
-
-void right() {
-  drive(a1Motor1, a2Motor1, speed1);
-  drive(a1Motor2, a2Motor2, 0);
-}
-
-void forward() {
-  if(isstopped) {
-    drive(a1Motor1, a2Motor1, 200);
-    drive(a1Motor2, a2Motor2, 200);
-    delay(50);
-    isstopped = false;
-  }
-  
-  drive(a1Motor1, a2Motor1, speed1);
-  drive(a1Motor2, a2Motor2, speed2);
-}
-void back() {
-  drive(a2Motor1, a1Motor1, speed1);
-  drive(a2Motor2, a1Motor2, speed2);
-}
-
-void drive(int a1, int a2, int speed) {
-  analogWrite(a1, speed);
-  digitalWrite(a2, LOW);
-}
-
-void open(){
-  gripper.write(120);
-}
-
-void close(){
-  gripper.write(50);
-}
-
-int getDistance()  {
-  int total = 0;
-  for(int i = 0; i<10;i++) {
-    digitalWrite(trigPin, LOW); 
-    delayMicroseconds(2);
-    digitalWrite(trigPin, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(trigPin, LOW);
-    int duration = pulseIn(echoPin, HIGH);
-    int distance = (duration*0.0343)/2;
-    total += distance;
-  }
-  return total;
-}
-
-void turn(){
-    drive(a1Motor1, a2Motor1, speed1);
-    drive(a2Motor2, a1Motor2, speed2);
-    
 }

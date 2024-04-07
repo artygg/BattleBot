@@ -1,159 +1,133 @@
-#define LEFT_LIMIT 0
-#define RIGHT_LIMIT 180
+#include <Servo.h>
 
-#define GRIPPER_PIN 4
-#define GRIPPER_OPEN 1500
-#define GRIPPER_CLOSE 1000
+#define LEFT_LIMIT   0
+#define RIGHT_LIMIT  180
+#define SCAN_SPEED   60
+const int distanceLimit 5;
+const float pi = 3.141592653589793238462643383279;
 
-#define PI 3.14159
+//Distance from eyes to the back wheel - 180mm
+//Distance between wheels - 110mm
 
-#define DISTANCE_LIMIT_LEFT 20
-#define DISTANCE_LIMIT_FORWARD 11
-#define DISTANCE_LIMIT_TURN 30
-#define DISTANCE_ONE_PULSE PI * 6.5 / 20  // 6.5 - wheel Diameter, 20 - pulses per wheel
-#define DISTANCE_GET_DELAY 20
-#define DISTANCE_WIDTH 15
+// Define pins for motor 1
+const int a1Motor1 = 11; // PWM pin for motor 1
+const int a2Motor1 = 10; // Direction pin for motor 1
+const int sensorPinMotor1 = 2; //Sensor pin for motor 1
 
-#define DISTANCE_SENSOR_TRIG_PIN          8
-#define DISTANCE_SENSOR_FORWARD_ECHO_PIN  7
-#define DISTANCE_SENSOR_LEFT_ECHO_PIN     9
+// Define pins for motor 2
+const int a1Motor2 = 5; // PWM pin for motor 2
+const int a2Motor2 = 6; // Direction pin for motor 2
+const int sensorPinMotor2 = 3; //Sensor pin for motor 2
 
-#define MOTOR_LEFT_PIN_1 11
-#define MOTOR_LEFT_PIN_2 10
-#define MOTOR_LEFT_SENSOR 2
+const float pulseDistance = pi*65/20; //Wheel diameter in mm * PI constant and divided by pulses per 1 spin
 
-#define MOTOR_RIGHT_PIN_1 5
-#define MOTOR_RIGHT_PIN_2 6
-#define MOTOR_RIGHT_SENSOR 3
+const int gripperPin = 4;
+const int distanceRotatorPin = 12;
+
+const int lsensor1 = A0;
+const int lsensor2 = A1;
+
+int lineSensorValue;
+bool isstopped = true;
+
+const int trigPin = 8;  
+const int echoPin = 7; 
 
 
-unsigned int gripperState = GRIPPER_OPEN;
+Servo gripper;
+Servo eyes;
 
-unsigned int robotState = 0;
-// 0 - stopped
-// 1 - turn eyes left
-// 2 - going forward to obstacle
+int speed1 = 150;
+int speed2 = 120;
 
-int speedLeft = 220;
-int speedRight = 250;
 
-unsigned int motorLeftSensor = 0;
-unsigned int motorRightSensor = 0;
+int sensorValueMotorL = 0;
+int sensorValueMotorR = 0;
+
+int totalPulses = 0;
+
+volatile unsigned long pulseCountL = 0;
+unsigned long lastTimeL = 0; 
 
 
 void setup() {
-  Serial.begin(9600);
-  pinMode(GRIPPER_PIN, OUTPUT);
-  pinMode(DISTANCE_SENSOR_TRIG_PIN, OUTPUT);
-  pinMode(DISTANCE_SENSOR_FORWARD_ECHO_PIN, INPUT);
-  pinMode(DISTANCE_SENSOR_LEFT_ECHO_PIN, INPUT);
+    // Initialize PWM and direction pins as outputs
+    pinMode(trigPin, OUTPUT);  
+  	pinMode(echoPin, INPUT);  
+	  Serial.begin(9600);  
 
-  pinMode(MOTOR_RIGHT_PIN_1, OUTPUT);
-  pinMode(MOTOR_RIGHT_PIN_2, OUTPUT);
-  pinMode(MOTOR_RIGHT_PIN_1, OUTPUT);
-  pinMode(MOTOR_RIGHT_PIN_2, OUTPUT);
-  pinMode(MOTOR_LEFT_SENSOR, INPUT);
-  pinMode(MOTOR_RIGHT_SENSOR, INPUT);
-  attachInterrupt(digitalPinToInterrupt(MOTOR_RIGHT_SENSOR), countPulseL, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(MOTOR_LEFT_SENSOR), countPulseR, CHANGE);
-  gripperState = GRIPPER_OPEN;
+    pinMode(lsensor1, INPUT);
+    pinMode(lsensor2, INPUT);
+
+    pinMode(a1Motor1, OUTPUT);
+    pinMode(a2Motor1, OUTPUT);
+    pinMode(a1Motor2, OUTPUT);
+    pinMode(a2Motor2, OUTPUT);
+    pinMode(sensorPinMotor1, INPUT);
+    pinMode(sensorPinMotor2, INPUT);
+    attachInterrupt(digitalPinToInterrupt(sensorPinMotor2), countPulseL, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(sensorPinMotor1), countPulseR, CHANGE);
+
+    gripper.attach(gripperPin);
+    eyes.attach(distanceRotatorPin);
+    //pinMode(sensorPinMotor1, INPUT_PULLUP);
+    //pinMode(sensorPinMotor2, INPUT_PULLUP);
+    open();
+    delay(1000);
+    close();
+    Serial.println(pulseDistance);
+
 }
 
 void loop() {
-  gripper(gripperState);
-  gripper(0);
-  int distanceLeft = getLeftDistance();
-  delay(50);
-  int distanceForward =  getForwardDistance();
- 
-  
-  if(distanceForward > DISTANCE_LIMIT_FORWARD) {
-    Serial.println("FORWARD IS FREE");
-    forward();
-    if (distanceLeft > DISTANCE_LIMIT_LEFT) {
-      turnLeft();
-      stop();
+    stop();
+    eyes.write(85);
+    delay(300);
+    int DistanceToObstacle = 0;
+    for(int i = 0; i<10; i++) {
+      DistanceToObstacle += getDistane();
+      delay(100);
     }
-  } else {
-    turnRight();
-    stop();
-  }
-  
-  /*
-  if (distanceLeft > DISTANCE_LIMIT_LEFT) {
-      Serial.println("LEFT FREE");
-      forward();
-      delay(200);
-      turnLeft();
-    }
-  if (getForwardDistance() > DISTANCE_LIMIT_FORWARD) {
-    Serial.println("FORWARD");
-    forward();
-  } else {
-    stop();
-    Serial.println("STOP");
-    gripperState = GRIPPER_CLOSE;
-  }
-
-  /*static unsigned int distanceToObstacle;
-  if (robotState == 0) {
-    getDistance();
-    stop();
-    delay(100);/*
-    eyes(EYES_FORWARD);
-    Serial.println("Turn eyes forward");
-    distanceToObstacle = getDistance();
-    Serial.print("Distance to Obstacle ");
-    Serial.println(distanceToObstacle);
-    robotState = 1;
-    if (distanceToObstacle >= 1000) {
-      Serial.println("Set distance to 400");
-      distanceToObstacle = 400;
-    } else if (distanceToObstacle < DISTANCE_LIMIT) {
-      Serial.println("Distance too small, stopping...");
-      stop();
-      robotState = 4;
-    }
-  }
-  if (robotState == 1) {
-    Serial.println("Turn Eyes Left");
-    stop();
-    eyes(EYES_LEFT);
+    DistanceToObstacle /= 10;
     delay(50);
-    robotState = 2;
-  }
-  if (robotState == 2) {
-    int leftDistance = getDistance();
-    Serial.print("Distnace Left: ");
-    Serial.print(leftDistance);
-    if (leftDistance > DISTANCE_LEFT) {
-      Serial.println("GOING FORWARRD FOR LEFT TURN");
-      forward(ROBOT_LENGTH/2);
-      if(robotState == 0)
-      {
-        Serial.println("Turning left");
-        turnLeftSmoothly();
-        stop();
-      }
-    } else {
-        Serial.print("     Going Forward: ");
-        Serial.println(distanceToObstacle);
-        forward(distanceToObstacle);
+    eyes.write(180);
+    /*Serial.println(totalPulses);
+    Serial.println(distanceToObstacle);
+    Serial.println((distanceToObstacle - DISTANCE_LIMIT)/pulseDistance);*/
+    if(DistanceToObstacle >= 100) {
+      DistanceToObstacle = 30;
     }
-  }
-  /*Serial.print("          State: ");
-  Serial.println(robotState);
-
-
-  /*Serial.print("Motor L: ");
-    Serial.println(motorLeftSensor);
+    for(int totalPulses = 0; totalPulses<(distanceToObstacle - DISTANCE_LIMIT)/pulseDistance;) {
+      forward();
+      int leftDistance = getDistane();
+      if(leftDistance > 10) {
+        stop();
+        return;
+      }
+      int speedDif = sensorValueMotorL - sensorValueMotorR;
+      speed1 -= speedDif*5;
+      if (speed1<1) {
+        speed1 = 0;
+      } else if(speed1>250) {
+        speed1 = 250;
+      }
+      totalPulses += sensorValueMotorR;
+      sensorValueMotorL = 0;
+      sensorValueMotorR = 0;
+      delay(50); 
+    }
+    totalPulses = 0;
+    turn();
+    /*Serial.print("Motor L: ");
+    Serial.println(sensorValueMotorL);
     
     Serial.print("Motor R: ");
-    Serial.println(motorRightSensor);*/
+    Serial.println(sensorValueMotorR);*/
+    
+    
+  
 
-
-
-
+  
   /*forward();
   delay(3000);
   back();
@@ -181,7 +155,7 @@ void loop() {
   //  }
 
 
-  /*
+/*
     for (int pos = LEFT_LIMIT; pos <= RIGHT_LIMIT; pos += SCAN_SPEED) {
         eyes.write(pos);
         int distance = getDistance();
@@ -203,108 +177,84 @@ void loop() {
 }
 
 void countPulseL() {
-  motorLeftSensor++;
+    sensorValueMotorL++;
 }
 
 void countPulseR() {
-  motorRightSensor++;
+    sensorValueMotorR++;
 }
 
-void stop() {
-  drive(MOTOR_LEFT_PIN_1, MOTOR_LEFT_PIN_2, 0);
-  drive(MOTOR_RIGHT_PIN_1, MOTOR_RIGHT_PIN_2, 0);
-  motorRightSensor = 0;
-  motorLeftSensor = 0;
+void stop(){
+  isstopped = true;
+  drive(a1Motor1, a2Motor1, 0);
+  drive(a1Motor2, a2Motor2, 0);
 }
 
-void turnLeft() {
-  forward();
-  delay(300);
-  stop();
-  for (int totalPulses = 0; totalPulses < 40;) {
-    left();
-    totalPulses += motorRightSensor;
-    motorRightSensor = 0;
-    Serial.println(totalPulses);
-  }
-  motorRightSensor = 0;
-  motorLeftSensor = 0;
-  stop();
-  // while(true){
-  //   Serial.println("STOPPED");
-  // }
-}
-
-void turnLeftSmoothly() {
-  back();
-  for (int totalPulses = 0; totalPulses < 55;) {
-    smoothLeft();
-    totalPulses += motorRightSensor;
-    motorRightSensor = 0;
+void turnLeft(int deg) {
+  int arcLen = (110*pi*deg/180)*2;
+  for(int totalPulses = 0;totalPulses<(arcLen/pulseDistance);) {
+      left();
+      totalPulses += sensorValueMotorR;
+      sensorValueMotorR = 0; 
+      delay(10);
   }
   stop();
+  delay(1000);
 }
 
-void turnRight() {
-  for(int forwardDistance = getForwardDistance(); forwardDistance <= DISTANCE_LIMIT_FORWARD+5; forwardDistance = getForwardDistance()) {
-      back();
-  }
-  stop();
-  for(int forwardDistance = getForwardDistance(); forwardDistance < DISTANCE_LIMIT_TURN; forwardDistance = getForwardDistance()) {
-      back();
-      delay(300);
-      right();
-      delay(400);
+void turnRight(int deg) {
+  int arcLen = (110*pi*deg/180)*2;
+  for(int totalPulses = 0;totalPulses<(arcLen/pulseDistance);) {
+      right_back();
+      totalPulses += sensorValueMotorR;
+      sensorValueMotorR = 0;
+      delay(10);
   }
   stop();
 }
 
 void turn() {
-  int arcLen = (110 * PI * 180 / 180) * 2;
-  for (int totalPulses = 0; totalPulses < (arcLen / DISTANCE_ONE_PULSE);) {
-    drive(MOTOR_RIGHT_PIN_1, MOTOR_RIGHT_PIN_2, speedLeft);
-    drive(MOTOR_RIGHT_PIN_2, MOTOR_RIGHT_PIN_1, speedRight);
-    totalPulses += motorRightSensor;
-    motorRightSensor = 0;
-    delay(10);
+  int arcLen = (110*pi*deg/180)*2;
+  for(int totalPulses = 0;totalPulses<(arcLen/pulseDistance);) {
+      drive(a1Motor1, a2Motor1, speed1);
+      drive(a2Motor2, a1Motor2, speed2);
+      totalPulses += sensorValueMotorR;
+      sensorValueMotorR = 0;
+      delay(10);
   }
   stop();
 }
 
 void left() {
-  drive(MOTOR_LEFT_PIN_1, MOTOR_LEFT_PIN_2, 0);
-  drive(MOTOR_RIGHT_PIN_1, MOTOR_RIGHT_PIN_2, 255);
+  drive(a1Motor1, a2Motor1, 0);
+  drive(a1Motor2, a2Motor2, speed2);
 }
-
-void smoothLeft() {
-  drive(MOTOR_RIGHT_PIN_1, MOTOR_RIGHT_PIN_2, speedLeft / 3);
-  drive(MOTOR_RIGHT_PIN_1, MOTOR_RIGHT_PIN_2, speedRight);
-}
-
 void right_back() {
-  drive(MOTOR_RIGHT_PIN_1, MOTOR_RIGHT_PIN_2, 0);
-  drive(MOTOR_RIGHT_PIN_2, MOTOR_RIGHT_PIN_1, speedRight);
+  drive(a1Motor1, a2Motor1, 0);
+  drive(a2Motor2, a1Motor2, speed2);
 }
+
+
 
 void right() {
-  drive(MOTOR_LEFT_PIN_1, MOTOR_LEFT_PIN_2, 255);
-  drive(MOTOR_RIGHT_PIN_1, MOTOR_RIGHT_PIN_2, 0);
-}
-void forward() {
-  int speedDif = motorLeftSensor - motorRightSensor;
-  speedLeft -= speedDif;
-  if (speedLeft < 1) {
-    speedLeft = 0;
-  } else if (speedLeft > 250) {
-    speedLeft = 250;
-  }
-  drive(MOTOR_LEFT_PIN_1, MOTOR_LEFT_PIN_2, speedLeft);
-  drive(MOTOR_RIGHT_PIN_1, MOTOR_RIGHT_PIN_2, speedRight);
+  drive(a1Motor1, a2Motor1, speed1);
+  drive(a1Motor2, a2Motor2, 0);
 }
 
+void forward() {
+  if(isstopped) {
+    drive(a1Motor1, a2Motor1, 200);
+    drive(a1Motor2, a2Motor2, 200);
+    delay(50);
+    isstopped = false;
+  }
+  
+  drive(a1Motor1, a2Motor1, speed1);
+  drive(a1Motor2, a2Motor2, speed2);
+}
 void back() {
-  drive(MOTOR_LEFT_PIN_2, MOTOR_LEFT_PIN_1, speedLeft);
-  drive(MOTOR_RIGHT_PIN_2, MOTOR_RIGHT_PIN_1, speedRight);
+  drive(a2Motor1, a1Motor1, speed1);
+  drive(a2Motor2, a1Motor2, speed2);
 }
 
 void drive(int a1, int a2, int speed) {
@@ -312,36 +262,31 @@ void drive(int a1, int a2, int speed) {
   digitalWrite(a2, LOW);
 }
 
-void sendPulse(){
-    digitalWrite(DISTANCE_SENSOR_TRIG_PIN, LOW);
+void open(){
+  gripper.write(120);
+}
+
+void close(){
+  gripper.write(50);
+}
+
+int getDistance()  {
+  int total = 0;
+  for(int i = 0; i<10;i++) {
+    digitalWrite(trigPin, LOW); 
     delayMicroseconds(2);
-    digitalWrite(DISTANCE_SENSOR_TRIG_PIN, HIGH);
+    digitalWrite(trigPin, HIGH);
     delayMicroseconds(10);
-    digitalWrite(DISTANCE_SENSOR_TRIG_PIN, LOW);
-}
-
-int getForwardDistance() {
-  sendPulse();
-  long duration = pulseIn(DISTANCE_SENSOR_FORWARD_ECHO_PIN, HIGH);
-  return duration * 0.034 / 2;
-}
-
-int getLeftDistance() {
-  sendPulse();
-  long duration = pulseIn(DISTANCE_SENSOR_LEFT_ECHO_PIN, HIGH);
-  return duration * 0.034 / 2;
-}
-
-void gripper(int pulse) {
-  static unsigned long timer;
-  static unsigned int pulse1;
-  if (pulse > 0) {
-    pulse1 = pulse;
+    digitalWrite(trigPin, LOW);
+    int duration = pulseIn(echoPin, HIGH);
+    int distance = (duration*0.0343)/2;
+    total += distance;
   }
-  if (millis() > timer) {
-    digitalWrite(GRIPPER_PIN, HIGH);
-    delayMicroseconds(pulse1);
-    digitalWrite(GRIPPER_PIN, LOW);
-    timer = millis() + 20;
-  }
+  return total;
+}
+
+void turn(){
+    drive(a1Motor1, a2Motor1, speed1);
+    drive(a2Motor2, a1Motor2, speed2);
+    
 }

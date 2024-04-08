@@ -42,6 +42,14 @@ int countRight = 0;
 int countsLeft = 0, previousCountLeft;
 int countsRight = 0, previousCountRight;
 
+//start
+int lineCount = 0;
+bool shouldPerformLineCountingAndGrabbing = true;
+bool lineDetected = false;
+
+//end
+bool stopForever = false;
+
 
 //===[ Led Pixels ]================================
 
@@ -103,7 +111,7 @@ void setup_motor_pins() {
 void moveForward() {
   leds.fill(BLUE, 0, 4);
   leds.show();
-  analogWrite(motorLeftForward, 240);
+  analogWrite(motorLeftForward, 230);
   analogWrite(motorRightForward, 250);
   digitalWrite(motorRightBackwards, 0);
   digitalWrite(motorLeftBackwards, 0);
@@ -147,6 +155,12 @@ void turnRight() {
   digitalWrite(motorRightBackwards, 0);
 }
 void rotateOnAxis() {
+  for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+          if (sensorValue > calculateLineThreshold()) {
+              return;
+          }
+        }
   leds.fill(RED, 0, 4);
   leds.show();
   analogWrite(motorLeftBackwards, 240);
@@ -155,6 +169,12 @@ void rotateOnAxis() {
   digitalWrite(motorRightBackwards, 0);
 }
 void rotateCounterAxis() {
+  for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+          if (sensorValue > calculateLineThreshold()) {
+              return;
+          }
+        }
   digitalWrite(motorLeftBackwards, 0);
   analogWrite(motorLeftForward, 240);
   digitalWrite(motorRightForward, 0);
@@ -178,7 +198,7 @@ void rotatePulses(int nrOfPulses) {
         leds.fill(WHITE, 0, 4);
         leds.show();
         moveBackwardsRotate();
-        wait(450);
+        wait(300);
       }
     } else {
       movementBuffer = millis() + movementStuckBufferDelay;
@@ -203,11 +223,35 @@ void moveForwardOnPulses(int nrOfPulses) {
 
   if(distanceLeft < 5) {
     adjustRight();
+    for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+          if (sensorValue > calculateLineThreshold()) {
+              break;
+          }
+        }
   }
+   for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+          if (sensorValue > calculateLineThreshold()) {
+              break;
+          }
+        }
   moveForward();
   while ((countLeft < nrOfPulses && countRight < nrOfPulses) && isActive) {
+    for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+          if (sensorValue > calculateLineThreshold()) {
+              break;
+          }
+        }
     if (countLeft == lastCountLeft && countRight == lastCountRight) {  //wheel has not pulsed yet
       if (millis() > movementBuffer) {                                 //if not moved for duration
+         for (int i = 0; i < 8; i++) {
+            int sensorValue = analogRead(lineSensors[i]);
+              if (sensorValue > calculateLineThreshold()) {
+                  break;
+          }
+        }
         movementBuffer = millis() + movementStuckBufferDelay;
         leds.fill(WHITE, 0, 4);
         leds.show();
@@ -219,9 +263,16 @@ void moveForwardOnPulses(int nrOfPulses) {
         }
       }
     } else {
+       for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+          if (sensorValue > calculateLineThreshold()) {
+              break;
+          }
+        }
       movementBuffer = millis() + movementStuckBufferDelay;
       lastCountLeft = countLeft;
       lastCountRight = countRight;
+
     }
     getDistanceFront();
   }
@@ -253,6 +304,14 @@ void getDistanceLeft() {
   durationLeft = pulseIn(echoPinLeft, HIGH);
   // Calculating the distance
   distanceLeft = durationLeft * 0.034 / 2;
+
+  for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+          if (sensorValue > calculateLineThreshold()) {
+              break;
+          }
+        }
+
 }
 
 void getDistanceFront() {
@@ -263,7 +322,13 @@ void getDistanceFront() {
   durationFront = pulseIn(echoPinFront, HIGH);
   // Calculating the distance
   distanceFront = durationFront * 0.034 / 2;
-  Serial.println(distanceFront);
+//  Serial.println(distanceFront);
+        for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+          if (sensorValue > calculateLineThreshold()) {
+              break;
+          }
+        }
 }
 
 void wait(int waitingTime) {
@@ -287,6 +352,166 @@ void openGripper() {
 void closeGripper() {
   gripperServo(GRIPPER_CLOSE_PULSE);
 }
+
+
+void performLineCountingAndGrabbing() {
+  static unsigned long lastLineTime = 0;
+  unsigned long currentTime = millis();
+
+  if (lineCount < 4) {
+    moveForward();
+    int lineDetected = checkLines();
+    if (lineDetected && currentTime - lastLineTime >= 200) {
+      lineCount++;
+      lastLineTime = currentTime;
+    }
+  }
+  if (lineCount == 4 ) {
+    stopRobot();
+    closeGripper();
+
+    do {
+    moveForward();
+    } while (!areAllSensorsBelowThreshold());
+    lineCount++;
+    turnLeft90Degrees();
+    shouldPerformLineCountingAndGrabbing = false;
+  }
+}
+
+bool areAllSensorsBelowThreshold() {
+    for (int i = 0; i < 8; i++) {
+        if (analogRead(lineSensors[i]) > calculateLineThreshold()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool areAllSensorsBiggerThreshold() {
+    for (int i = 0; i < 8; i++) {
+        if (analogRead(lineSensors[i]) < calculateLineThreshold()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int calculateLineThreshold() {
+  static int calculatedLineThreshold = -1;
+  if (calculatedLineThreshold != -1) {
+    return calculatedLineThreshold;
+  }
+
+  int highestValue = 0;
+  for (int i = 0; i < 8; i++) {
+    int sensorValue = analogRead(lineSensors[i]);
+    highestValue = max(highestValue, sensorValue);
+  }
+
+  calculatedLineThreshold = highestValue + 100;
+  return calculatedLineThreshold;
+}
+
+int checkLines() {
+  for (int i = 0; i < 8; i++) {
+    if (analogRead(lineSensors[i]) > calculateLineThreshold()) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+void turnLeft90Degrees() {
+  int sensorValue0, sensorValue1, sensorValue2, sensorValue3, sensorValueA7, sensorValueA5;
+  digitalWrite(motorLeftForward, LOW);
+  analogWrite(motorLeftBackwards, 255);
+  analogWrite(motorRightForward, 255);
+  digitalWrite(motorRightBackwards, LOW);
+
+  do {
+    sensorValue0 = analogRead(lineSensors[4]); // Middle sensor 1
+    sensorValue1 = analogRead(lineSensors[2]); // Middle sensor 2 (left of middle)
+    sensorValue2 = analogRead(lineSensors[0]); // Middle sensor 3 (right of middle)
+    sensorValue3 = analogRead(lineSensors[1]); // Middle sensor 4
+    sensorValueA7 = analogRead(lineSensors[5]); // Leftmost sensor
+    sensorValueA5 = analogRead(lineSensors[6]); // Rightmost sensor
+
+  } while (!((sensorValue0 > calculateLineThreshold() || sensorValue1 > calculateLineThreshold() || sensorValue2 > calculateLineThreshold() || sensorValue3 > calculateLineThreshold()) &&
+             sensorValueA7 < calculateLineThreshold() && sensorValueA5 < calculateLineThreshold()));
+
+  stopRobot();
+}
+
+void turnRight90Degrees() {
+    int sensorValue0, sensorValue1, sensorValue2, sensorValue3, sensorValueA7, sensorValueA5;
+    digitalWrite(motorRightForward, LOW);
+    analogWrite(motorRightBackwards, 255);
+    analogWrite(motorLeftForward, 255);
+    digitalWrite(motorLeftBackwards, LOW);
+
+    do {
+        sensorValue1 = analogRead(lineSensors[2]); // Adjust if needed
+        sensorValue2 = analogRead(lineSensors[0]); // Adjust if needed
+        sensorValueA7 = analogRead(lineSensors[5]); // Adjust if needed
+        sensorValueA5 = analogRead(lineSensors[6]); // Adjust if needed
+    } while (!((sensorValue1 > calculateLineThreshold() || sensorValue2 > calculateLineThreshold() )&&
+               sensorValueA7 < calculateLineThreshold() && sensorValueA5 < calculateLineThreshold()));
+
+    stopRobot();
+}
+
+
+bool lineDetectedMid() {
+    for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+        Serial.print(sensorValue);
+
+        if (sensorValue > calculateLineThreshold()) {
+            Serial.println(" Line Detected");
+            return true;
+        }
+    }
+    return false;
+}
+
+void followLine() {
+    bool lineDetected = false;
+
+    // Convert sensor readings to binary values based on threshold comparison
+    int leftSensorBinary = analogRead(lineSensors[3]) > calculateLineThreshold() ? 1 : 0;
+    int rightSensorBinary = analogRead(lineSensors[1]) > calculateLineThreshold() ? 1 : 0;
+
+    // Check if any sensor detects the line
+    for (int i = 0; i < 4; i++) {
+        if (analogRead(lineSensors[i]) > calculateLineThreshold()) {
+            lineDetected = true;
+            break; // If any sensor detects the line, no need to check further
+        }
+    }
+
+    if (lineDetected) {
+        moveForward(); // If line is detected under any sensor, move forward
+    } else {
+        if(leftSensorBinary == rightSensorBinary){
+          if(areAllSensorsBelowThreshold()){
+            return;
+            }else{turnRight90Degrees();}
+
+        }
+        if (leftSensorBinary == 0) {
+            turnLeft();
+        } else if (rightSensorBinary == 0) {
+             turnRight;
+        }
+      }
+   }
+
+
+
+
+
+
 //===[SETUP ]============================
 
 void setup() {
@@ -304,50 +529,89 @@ void setup() {
   leds.show();
   countLeft = 0;
   countRight = 0;
+  Serial.begin(9600);
 }
 
 //===[ LOOP ]============================
 
 void loop() {
-  if (hasStarted) {
-    getDistanceLeft();
-    getDistanceFront();
-    if (distanceLeft <= 20 && distanceFront >= 14) {
-      moveForwardOnPulses(10);
-      stopRobot();
-      wait(200);
-    } else if (distanceLeft > 20 && distanceFront > 14) {
-      rotatePulses(50);
-      stopRobot();
-      wait(200);
-      moveForwardOnPulses(15);
-      rotatePulses(50);
-    } else if (distanceLeft < 10 && distanceFront <= 15) {
-      leds.fill(YELLOW, 0, 4);
-      leds.show();
-      getDistanceFront();
-      rotateCounterAxis();
-      wait(400);
-      moveForwardOnPulses(10);
-    } else {
-      leds.fill(WHITE, 0, 4);
-      leds.show();
-      moveBackwards();
-      wait(300);
-      rotateCounterAxis();
-      wait(300);
+  if (stopForever) {
+    return;
+  }
+  if (hasStarted){
+    if (lineDetectedMid()) {
+      Serial.print("Line Detected");
+      followLine();
+      if (areAllSensorsBiggerThreshold()) {
+        openGripper();
+        moveBackwards();
+        wait(300);
+        stopRobot();
+        stopForever = true;
+        return;
+      }
     }
-  } else {
+  else {
+      getDistanceLeft();
+      getDistanceFront();
+      if (distanceLeft <= 20 && distanceFront >= 14) {
+        for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+          if (sensorValue > calculateLineThreshold()) {
+              break;
+          }
+        }
+        moveForwardOnPulses(10);
+        stopRobot();
+        wait(200);
+      } else if (distanceLeft > 20 && distanceFront > 14) {
+        for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+          if (sensorValue > calculateLineThreshold()) {
+              break;
+          }
+        }
+        rotatePulses(50);
+        stopRobot();
+        wait(200);
+        moveForwardOnPulses(15);
+        rotatePulses(50);
+      } else if (distanceLeft < 10 && distanceFront <= 15) {
+        for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+          if (sensorValue > calculateLineThreshold()) {
+              break;
+          }
+        }
+        leds.fill(YELLOW, 0, 4);
+        leds.show();
+        getDistanceFront();
+        rotateCounterAxis();
+        wait(400);
+        moveForwardOnPulses(10);
+      } else {
+        for (int i = 0; i < 8; i++) {
+        int sensorValue = analogRead(lineSensors[i]);
+          if (sensorValue > calculateLineThreshold()) {
+              break;
+          }
+        }
+        leds.fill(WHITE, 0, 4);
+        leds.show();
+        moveBackwards();
+        wait(300);
+        rotateCounterAxis();
+        wait(300);
+      }
+  }
+  }else {
     if (hasInitiatedStart == true) {
-      moveForward();
-      wait(800);
-      closeGripper();
-      countLeft = 0;
-      countRight = 0;
-      rotatePulses(120);
-      delay(100);
-      moveForwardOnPulses(70);
-      hasStarted = true;
+      if (shouldPerformLineCountingAndGrabbing) {
+        performLineCountingAndGrabbing();
+      }
+      if (!shouldPerformLineCountingAndGrabbing) {
+        hasStarted = true;
+      }
     } else {
       wait(1000);
       getDistanceFront();
